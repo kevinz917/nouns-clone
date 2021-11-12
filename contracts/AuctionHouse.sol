@@ -7,6 +7,7 @@ import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interface/IAuctionHouse.sol";
 import "./interface/IToken.sol";
 
 struct Auction {
@@ -16,8 +17,8 @@ struct Auction {
   uint256 endTime;
 }
 
-contract AuctionHouse is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
-  IToken public nft; // nft address
+contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+  IToken public nft; // nft token address
 
   uint256 public tokenId;
 
@@ -28,7 +29,8 @@ contract AuctionHouse is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuar
   event Bid(address _bidder, uint256 _amount, uint256 _tokenId);
   event AuctionSettled(uint256 _tokenId, uint256 _amount, address _winner);
 
-  constructor(IToken _nft, uint256 _auctionDuration) {
+  // TODO: Read contract
+  function initialize(IToken _nft, uint256 _auctionDuration) external initializer {
     __ReentrancyGuard_init();
     __Pausable_init();
 
@@ -47,7 +49,7 @@ contract AuctionHouse is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuar
    * @notice Bid on an NFT
    * @dev This accepts ETH
    */
-  function bid() public payable {
+  function bid() public payable override nonReentrant {
     require(auctions[tokenId].amount > msg.value, "BID TOO LOW"); // in NOUNS, the bid must be 2% greater than the previous bid
 
     Auction memory currentBidEvent = auctions[tokenId];
@@ -55,13 +57,15 @@ contract AuctionHouse is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuar
     address payable _lastBidder = currentBidEvent.bidder;
     if (_lastBidder != address(0)) {
       _lastBidder.transfer(currentBidEvent.amount);
-      payable(address(this)).transfer(currentBidEvent.amount);
     }
 
     currentBidEvent.amount = msg.value;
     currentBidEvent.bidder = payable(msg.sender);
 
-    // extend time
+    // extend auction for 5 minutes
+    if (currentBidEvent.endTime - block.timestamp < 60 * 5) {
+      currentBidEvent.endTime += 60 * 5;
+    }
 
     emit Bid(msg.sender, msg.value, tokenId);
   }
@@ -102,8 +106,7 @@ contract AuctionHouse is OwnableUpgradeable, PausableUpgradeable, ReentrancyGuar
   }
 
   /**
-   * @notice Change to new auction
-   * @dev This accepts ETH
+   * @notice Advance auction to next auction
    */
   function advanceAuction() public whenNotPaused nonReentrant {
     _settleAuction();
