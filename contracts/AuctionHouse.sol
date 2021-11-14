@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.6;
+pragma solidity ^0.8.4;
 
 // TODO: Add non-reentrant guard
 import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -51,6 +51,7 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
    */
   function bid() public payable override nonReentrant {
     require(auctions[tokenId].amount > msg.value, "BID TOO LOW"); // in NOUNS, the bid must be 2% greater than the previous bid
+    require(nft.balanceOf(msg.sender) == 0, "CAN ONLY OWN 1"); // player can't own more than 1 noun
 
     Auction memory currentBidEvent = auctions[tokenId];
 
