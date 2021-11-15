@@ -3,7 +3,7 @@ import "@nomiclabs/hardhat-waffle";
 import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-ethers";
-import "@nomiclabs/hardhat-waffle"; // https://www.npmjs.com/package/hardhat-typechain
+import "@nomiclabs/hardhat-waffle";
 // import "hardhat-gas-reporter"; // TODO: Figure out this
 
 // This is a sample Hardhat task. To learn how to create your own go to

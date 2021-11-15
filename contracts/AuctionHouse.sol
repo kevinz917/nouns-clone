@@ -28,6 +28,7 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
   mapping(uint256 => Auction) public auctions; // tokenId -> Bid
 
   event Bid(address _bidder, uint256 _amount, uint256 _tokenId);
+  event AuctionCreated(uint256 _tokenId, uint256 _startTime, uint256 _endTime);
   event AuctionSettled(uint256 _tokenId, uint256 _amount, address _winner);
 
   function initialize(IToken _nft, uint256 _auctionDuration) external initializer {
@@ -87,9 +88,13 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
     try nft.mint() returns (uint256 _tokenId) {
       tokenId = _tokenId;
 
-      Auction memory _newAuction = Auction({ bidder: payable(address(0)), amount: 0, startTime: block.timestamp, endTime: block.timestamp + auctionDuration }); // initiate new auction
+      uint256 startTime = block.timestamp;
+      uint256 endTime = block.timestamp + auctionDuration;
+      Auction memory _newAuction = Auction({ bidder: payable(address(0)), amount: 0, startTime: startTime, endTime: endTime }); // initiate new auction
 
       auctions[tokenId] = _newAuction;
+
+      emit AuctionCreated(_tokenId, startTime, endTime);
     } catch Error(string memory) {
       _pause();
     }

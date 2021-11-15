@@ -18,7 +18,7 @@ describe("Auction Test", () => {
   const AUCTION_DURATION = 60 * 60 * 24;
 
   // TODO: Look into typechain
-  async function deploy(deployer?: SignerWithAddress) {
+  async function deploy(deployer: SignerWithAddress) {
     const auctionHouseFactory = await ethers.getContractFactory("AuctionHouse", deployer);
     return upgrades.deployProxy(auctionHouseFactory, [nft.address, AUCTION_DURATION]) as Promise<AuctionHouse>;
   }
@@ -31,7 +31,15 @@ describe("Auction Test", () => {
     auctionHouse = await deploy(addr1);
     await nft.setMinter(auctionHouse.address); // change minter to auctionHouse contract
     await nft.setDAO(auctionHouse.address);
-    await auctionHouse.connect(addr1).initiateAuctionHouse(); // initiate the perpetual auction. mints first nft
+    const tx = await auctionHouse.connect(addr1).initiateAuctionHouse(); // initiate the perpetual auction. mints first nft
+
+    const receipt = await tx.wait();
+    const { timestamp } = await ethers.provider.getBlock(receipt.blockHash);
+
+    const createdEvent = receipt.events?.find((e) => e.event === "AuctionCreated"); // check auction emitted event data
+    expect(createdEvent?.args?._tokenId).to.equal(1);
+    expect(createdEvent?.args?._startTime).to.equal(timestamp);
+    expect(createdEvent?.args?._endTime).to.equal(timestamp + AUCTION_DURATION);
 
     expect(await auctionHouse.auctionDuration()).to.be.equal(AUCTION_DURATION);
     expect(await auctionHouse.nft()).to.be.equal(nft.address);
@@ -54,11 +62,12 @@ describe("Auction Test", () => {
 
     increaseBlockchainTimeBySeconds(AUCTION_DURATION * 2);
 
-    // _currentAuction = await auctionHouse.auctions(1);
-    // console.log(Number(_currentAuction.endTime));
-
     await auctionHouse.advanceAuction();
     expect(await nft.balanceOf(bidder1.address)).to.be.equal(1);
     expect(await auctionHouse.tokenId()).to.be.equal(2);
   });
+
+  // await expect(tx)
+  //     .to.emit(nounsAuctionHouse, 'AuctionBid')
+  //     .withArgs(nounId, bidderA.address, RESERVE_PRICE, false);
 });

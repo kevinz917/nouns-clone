@@ -122,6 +122,7 @@ export interface AuctionHouseInterface extends ethers.utils.Interface {
   ): Result;
 
   events: {
+    "AuctionCreated(uint256,uint256,uint256)": EventFragment;
     "AuctionSettled(uint256,uint256,address)": EventFragment;
     "Bid(address,uint256,uint256)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
@@ -129,12 +130,20 @@ export interface AuctionHouseInterface extends ethers.utils.Interface {
     "Unpaused(address)": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "AuctionCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "AuctionSettled"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Bid"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Paused"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Unpaused"): EventFragment;
 }
+
+export type AuctionCreatedEvent = TypedEvent<
+  [BigNumber, BigNumber, BigNumber],
+  { _tokenId: BigNumber; _startTime: BigNumber; _endTime: BigNumber }
+>;
+
+export type AuctionCreatedEventFilter = TypedEventFilter<AuctionCreatedEvent>;
 
 export type AuctionSettledEvent = TypedEvent<
   [BigNumber, BigNumber, string],
@@ -361,6 +370,17 @@ export interface AuctionHouse extends BaseContract {
   };
 
   filters: {
+    "AuctionCreated(uint256,uint256,uint256)"(
+      _tokenId?: null,
+      _startTime?: null,
+      _endTime?: null
+    ): AuctionCreatedEventFilter;
+    AuctionCreated(
+      _tokenId?: null,
+      _startTime?: null,
+      _endTime?: null
+    ): AuctionCreatedEventFilter;
+
     "AuctionSettled(uint256,uint256,address)"(
       _tokenId?: null,
       _amount?: null,
