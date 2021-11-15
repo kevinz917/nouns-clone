@@ -1,13 +1,14 @@
+import { AuctionHouse, Token, Seeder } from "./../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers as Ethers } from "ethers";
 import { ethers, upgrades } from "hardhat";
-import { revertMessages, increaseBlockchainTimeBySeconds, ZERO_ADDRESS } from "./helper";
+import { revertMessages, increaseBlockchainTimeBySeconds, ZERO_ADDRESS, deploySeeder, deployNFTToken } from "./helper";
 
 describe("Auction Test", () => {
-  let auctionHouse: Ethers.Contract;
-  let nft: Ethers.Contract;
-  let seeder: Ethers.Contract;
+  let auctionHouse: AuctionHouse;
+  let nft: Token;
+  let seeder: Seeder;
   let addr1: SignerWithAddress;
   let bidder1: SignerWithAddress;
   let bidder2: SignerWithAddress;
@@ -19,14 +20,14 @@ describe("Auction Test", () => {
   // TODO: Look into typechain
   async function deploy(deployer?: SignerWithAddress) {
     const auctionHouseFactory = await ethers.getContractFactory("AuctionHouse", deployer);
-    return upgrades.deployProxy(auctionHouseFactory, [nft.address, AUCTION_DURATION]) as Promise<any>;
+    return upgrades.deployProxy(auctionHouseFactory, [nft.address, AUCTION_DURATION]) as Promise<AuctionHouse>;
   }
 
   before(async () => {
     [addr1, bidder1, bidder2] = await ethers.getSigners();
     dao = addr1;
-    seeder = await (await ethers.getContractFactory("Seeder")).deploy(); // nft contract
-    nft = await (await ethers.getContractFactory("Token")).deploy(addr1.address, dao.address, seeder.address); // seeder contract
+    seeder = await deploySeeder();
+    nft = await deployNFTToken(addr1.address, dao.address, seeder.address);
     auctionHouse = await deploy(addr1);
     await nft.setMinter(auctionHouse.address); // change minter to auctionHouse contract
     await nft.setDAO(auctionHouse.address);
