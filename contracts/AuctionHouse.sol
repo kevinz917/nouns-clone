@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interface/IAuctionHouse.sol";
 import "./interface/IToken.sol";
+import "hardhat/console.sol"; // REMOVE ALL IN PROD
 
 struct Auction {
   address payable bidder;
@@ -24,15 +25,15 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
 
   uint256 public auctionDuration;
 
-  mapping(uint256 => Auction) auctions; // tokenId -> Bid
+  mapping(uint256 => Auction) public auctions; // tokenId -> Bid
 
   event Bid(address _bidder, uint256 _amount, uint256 _tokenId);
   event AuctionSettled(uint256 _tokenId, uint256 _amount, address _winner);
 
-  // TODO: Read contract
   function initialize(IToken _nft, uint256 _auctionDuration) external initializer {
     __ReentrancyGuard_init();
     __Pausable_init();
+    __Ownable_init();
 
     _pause(); // TODO: Remove this?
 
@@ -45,12 +46,18 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
     auctionDuration = _duration;
   }
 
+  // used only once to initiate auction
+  function initiateAuctionHouse() public onlyOwner {
+    _unpause();
+    _createAuction();
+  }
+
   /**
    * @notice Bid on an NFT
    * @dev This accepts ETH
    */
   function bid() public payable override nonReentrant {
-    require(auctions[tokenId].amount > msg.value, "BID TOO LOW"); // in NOUNS, the bid must be 2% greater than the previous bid
+    require(msg.value > auctions[tokenId].amount, "BID TOO LOW"); // in NOUNS, the bid must be 2% greater than the previous bid
     require(nft.balanceOf(msg.sender) == 0, "CAN ONLY OWN 1"); // player can't own more than 1 noun
 
     Auction memory currentBidEvent = auctions[tokenId];
@@ -60,12 +67,13 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
       _lastBidder.transfer(currentBidEvent.amount);
     }
 
-    currentBidEvent.amount = msg.value;
-    currentBidEvent.bidder = payable(msg.sender);
+    auctions[tokenId].bidder = payable(msg.sender);
+    auctions[tokenId].amount = msg.value;
 
     // extend auction for 5 minutes
-    if (currentBidEvent.endTime - block.timestamp < 60 * 5) {
-      currentBidEvent.endTime += 60 * 5;
+    bool extended = currentBidEvent.endTime - block.timestamp < 15 * 600;
+    if (extended) {
+      auctions[tokenId].endTime += 60 * 5;
     }
 
     emit Bid(msg.sender, msg.value, tokenId);
@@ -98,7 +106,7 @@ contract AuctionHouse is IAuctionHouse, OwnableUpgradeable, PausableUpgradeable,
     require(block.timestamp >= _currentAuction.endTime, "AUCTION NOT ENDED");
 
     if (_currentAuction.bidder == address(0)) {
-      // burn
+      // burn nft
     } else {
       nft.transferFrom(address(this), _currentAuction.bidder, tokenId);
     }

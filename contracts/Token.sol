@@ -2,14 +2,13 @@
 pragma solidity ^0.8.4;
 
 // import { ERC721Checkpointable } from "./base/ERC721Checkpointable.sol"; TODO: Read NounsDAO's contract here
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "./interface/ISeeder.sol";
 import "./interface/IToken.sol";
+import "hardhat/console.sol"; // REMOVE ALL IN PROD
 
-contract Token is
-  ERC721Enumerable,
-  IToken // IS THIS THE RIGHT PATTERN LOL
-{
+contract Token is ERC721Enumerable, IToken, Ownable {
   address public minter; // minter
 
   address public dao; // dao treasury
@@ -20,7 +19,7 @@ contract Token is
 
   mapping(uint256 => ISeeder.Seed) seeds; // tokeID => seed
 
-  mapping(uint256 => bool) public staked; // whether NFT is staked
+  mapping(uint256 => Lockup) public lockup; // tokenId => period.
 
   event Mint(address _recipient, uint256 _tokenId, ISeeder.Seed _seed);
 
@@ -35,14 +34,21 @@ contract Token is
   }
 
   // stake NFT
-  // what does staking do?
-  function stake(uint256 _tokenId) public onlyNFTOwner(_tokenId) {
-    staked[_tokenId] = true;
+  // The longer time you lock up your NFT, the more governance rights you receive during that period of time. Governance right are
+  // you are trading liquidity for governance rights
+  function stake(uint256 _tokenId, uint256 _period) public onlyNFTOwner(_tokenId) {
+    // lock up for certain periods of time
+    Lockup memory _newLockup = Lockup({ period: _period, startTime: block.timestamp, isStaked: true });
+
+    lockup[_tokenId] = _newLockup;
   }
 
   // unstake nft
   function unstake(uint256 _tokenId) public onlyNFTOwner(_tokenId) {
-    staked[_tokenId] = false;
+    Lockup memory _lockupTerm = lockup[_tokenId];
+    require(block.timestamp > _lockupTerm.startTime + _lockupTerm.period, "LOCKUP NOT MATURE");
+    _lockupTerm.isStaked = false;
+    lockup[_tokenId] = _lockupTerm;
   }
 
   // mint NFT
@@ -57,19 +63,30 @@ contract Token is
     address to,
     uint256 tokenId
   ) internal virtual override {
-    require(staked[tokenId] == false, "NFT STAKED");
+    // TODO: figure out how to checek whether NFT is staked before transfer
   }
 
   // internal use
   function mintTo(address _recipient) internal onlyMinter returns (uint256) {
-    // generate seed
     tokenId += 1;
-    ISeeder.Seed memory _seed = seeds[tokenId] = seeder.generateSeed();
+    ISeeder.Seed memory _seed = seeds[tokenId] = seeder.generateSeed(); // generate seed
     _mint(_recipient, tokenId);
 
     emit Mint(_recipient, tokenId, _seed);
     return tokenId;
   }
+
+  function setMinter(address _minter) public onlyOwner {
+    minter = _minter;
+  }
+
+  function setDAO(address _dao) public onlyOwner {
+    dao = _dao;
+  }
+
+  ///////////////////////////
+  ////// Modifiers /////////
+  ///////////////////////////
 
   modifier onlyMinter() {
     require(msg.sender == minter, "NOT MINTER");
@@ -78,6 +95,11 @@ contract Token is
 
   modifier onlyNFTOwner(uint256 _tokenId) {
     require(msg.sender == ownerOf(_tokenId), "NOT OWNER");
+    _;
+  }
+
+  modifier notStaked(uint256 _tokenId) {
+    require(lockup[tokenId].isStaked == false, "NFT IS STAKED");
     _;
   }
 }
